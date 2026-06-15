@@ -1,0 +1,2757 @@
+<!DOCTYPE html>
+<html lang="it" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FuelScan — Gestione Rifornimenti</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- Tesseract.js for OCR -->
+<script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+<style>
+
+  .camera-guide-modal[hidden] {
+  display: none !important;
+}
+
+.camera-guide-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 4000;
+}
+
+.camera-guide-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.78);
+  backdrop-filter: blur(2px);
+}
+
+.camera-guide-sheet {
+  position: relative;
+  z-index: 1;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4);
+}
+
+.camera-guide-topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+}
+
+.camera-guide-viewfinder {
+  position: relative;
+  flex: 1;
+  min-height: 60dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* RETTANGOLO GUIDA 7 x 14 */
+.camera-guide-frame {
+  position: relative;
+  width: min(60vw, 260px);
+  aspect-ratio: 7 / 14;
+  border-radius: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.96);
+  box-shadow:
+    0 0 0 9999px rgba(0, 0, 0, 0.45),
+    0 0 0 1px rgba(255,255,255,0.20) inset,
+    0 16px 48px rgba(0,0,0,0.35);
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0.04),
+    rgba(255,255,255,0.015)
+  );
+}
+
+.frame-corner {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border-color: #ffffff;
+  border-style: solid;
+  border-width: 0;
+}
+
+.frame-corner.tl {
+  top: -2px;
+  left: -2px;
+  border-top-width: 4px;
+  border-left-width: 4px;
+  border-top-left-radius: 12px;
+}
+
+.frame-corner.tr {
+  top: -2px;
+  right: -2px;
+  border-top-width: 4px;
+  border-right-width: 4px;
+  border-top-right-radius: 12px;
+}
+
+.frame-corner.bl {
+  bottom: -2px;
+  left: -2px;
+  border-bottom-width: 4px;
+  border-left-width: 4px;
+  border-bottom-left-radius: 12px;
+}
+
+.frame-corner.br {
+  bottom: -2px;
+  right: -2px;
+  border-bottom-width: 4px;
+  border-right-width: 4px;
+  border-bottom-right-radius: 12px;
+}
+
+.camera-guide-card {
+  position: absolute;
+  left: 50%;
+  bottom: max(4vh, 20px);
+  transform: translateX(-50%);
+  width: min(92vw, 480px);
+  background: rgba(18, 18, 18, 0.80);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+}
+
+.camera-guide-card h3 {
+  font-size: var(--text-base);
+  margin-bottom: var(--space-2);
+}
+
+.camera-guide-card p {
+  font-size: var(--text-sm);
+  color: rgba(255,255,255,0.84);
+  margin: 0 auto;
+  max-width: 34ch;
+}
+
+.camera-guide-actions {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
+  padding-top: var(--space-4);
+  padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+
+@media (max-width: 640px) {
+  .camera-guide-actions {
+    flex-direction: column;
+  }
+
+  .camera-guide-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .camera-guide-frame {
+    width: min(58vw, 220px);
+    aspect-ratio: 7 / 14;
+  }
+}
+.review-banner {
+  margin-bottom: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--color-warning-highlight);
+  color: var(--color-warning);
+  border: 1px solid color-mix(in oklch, var(--color-warning) 30%, transparent);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.field-warning {
+  border-color: var(--color-warning) !important;
+  box-shadow: 0 0 0 3px oklch(from var(--color-warning) l c h / 0.15) !important;
+  background: color-mix(in oklch, var(--color-warning-highlight) 45%, var(--color-surface-2));
+}
+
+.field-help {
+  margin-top: 6px;
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.crop-handle {
+  position: absolute;
+  background: red;
+  opacity: 0.7;
+}
+
+.handle-left,
+.handle-right {
+  width: 4px;
+  top: 0;
+  bottom: 0;
+  cursor: ew-resize;
+}
+
+.handle-left {
+  left: -2px;
+}
+
+.handle-right {
+  right: -2px;
+}
+
+.handle-top,
+.handle-bottom {
+  height: 4px;
+  left: 0;
+  right: 0;
+  cursor: ns-resize;
+}
+
+.handle-top {
+  top: -2px;
+}
+
+.handle-bottom {
+  bottom: -2px;
+}
+
+.field-help.warning {
+  color: var(--color-warning);
+  font-weight: 600;
+}
+/* ── Design Tokens ───────────────────────────── */
+:root, [data-theme="light"] {
+  --color-bg: #f5f5f0;
+  --color-surface: #fafaf7;
+  --color-surface-2: #ffffff;
+  --color-surface-offset: #eeede8;
+  --color-divider: #dcd9d4;
+  --color-border: #d3d0c9;
+  --color-text: #1e1c18;
+  --color-text-muted: #6e6c67;
+  --color-text-faint: #b5b3ae;
+  --color-primary: #01696f;
+  --color-primary-hover: #0c4e54;
+  --color-primary-active: #0f3638;
+  --color-primary-highlight: #ccdcd8;
+  --color-success: #437a22;
+  --color-success-highlight: #d4dfcc;
+  --color-warning: #964219;
+  --color-warning-highlight: #ddcfc6;
+  --color-error: #a12c7b;
+  --color-error-highlight: #e0ced7;
+  --color-orange: #da7101;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-full: 9999px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+  --text-xs: clamp(0.75rem, 0.7rem + 0.25vw, 0.875rem);
+  --text-sm: clamp(0.875rem, 0.8rem + 0.35vw, 1rem);
+  --text-base: clamp(1rem, 0.95rem + 0.25vw, 1.125rem);
+  --text-lg: clamp(1.125rem, 1rem + 0.75vw, 1.5rem);
+  --text-xl: clamp(1.5rem, 1.2rem + 1.25vw, 2.25rem);
+  --shadow-sm: 0 1px 2px oklch(0.2 0.01 80 / 0.06);
+  --shadow-md: 0 4px 12px oklch(0.2 0.01 80 / 0.09);
+  --shadow-lg: 0 12px 32px oklch(0.2 0.01 80 / 0.13);
+  --transition: 180ms cubic-bezier(0.16, 1, 0.3, 1);
+  --font-body: 'Inter', system-ui, sans-serif;
+  --font-display: 'Instrument Serif', Georgia, serif;
+  --content-default: 1040px;
+}
+[data-theme="dark"] {
+  --color-bg: #161513;
+  --color-surface: #1b1a18;
+  --color-surface-2: #1f1e1c;
+  --color-surface-offset: #252420;
+  --color-divider: #2b2a28;
+  --color-border: #353432;
+  --color-text: #cccac7;
+  --color-text-muted: #7a7875;
+  --color-text-faint: #514f4c;
+  --color-primary: #4f98a3;
+  --color-primary-hover: #227f8b;
+  --color-primary-active: #1a626b;
+  --color-primary-highlight: #2e3a3a;
+  --color-success: #6daa45;
+  --color-success-highlight: #3a4435;
+  --color-warning: #bb653b;
+  --color-warning-highlight: #564942;
+  --color-error: #d163a7;
+  --color-error-highlight: #4c3d46;
+  --color-orange: #fdab43;
+  --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2);
+  --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+  --shadow-lg: 0 12px 32px oklch(0 0 0 / 0.4);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) {
+    --color-bg: #161513; --color-surface: #1b1a18; --color-surface-2: #1f1e1c;
+    --color-surface-offset: #252420; --color-divider: #2b2a28; --color-border: #353432;
+    --color-text: #cccac7; --color-text-muted: #7a7875; --color-text-faint: #514f4c;
+    --color-primary: #4f98a3; --color-primary-hover: #227f8b;
+    --shadow-sm: 0 1px 2px oklch(0 0 0 / 0.2); --shadow-md: 0 4px 12px oklch(0 0 0 / 0.3);
+  }
+}
+
+/* ── Reset ───────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; -webkit-font-smoothing: antialiased; }
+body { min-height: 100dvh; font-family: var(--font-body); font-size: var(--text-base); color: var(--color-text); background: var(--color-bg); transition: background var(--transition), color var(--transition); }
+img, svg { display: block; max-width: 100%; }
+input, button, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; background: none; border: none; }
+table { border-collapse: collapse; width: 100%; }
+a, button, input, select { transition: color var(--transition), background var(--transition), border-color var(--transition), box-shadow var(--transition); }
+:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: var(--radius-sm); }
+
+/* ── Layout ──────────────────────────────────── */
+.app-layout { display: flex; flex-direction: column; min-height: 100dvh; }
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-3) var(--space-6);
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-divider);
+  box-shadow: var(--shadow-sm);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-brand { display: flex; align-items: center; gap: var(--space-3); }
+.topbar-brand-name { font-family: var(--font-display); font-size: var(--text-lg); color: var(--color-text); }
+.topbar-brand-name span { color: var(--color-primary); }
+.topbar-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+.main-content { flex: 1; max-width: var(--content-default); margin-inline: auto; width: 100%; padding: var(--space-8) var(--space-6); }
+
+/* ── Vehicles Screen ─────────────────────────── */
+#screen-vehicles { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: calc(100dvh - 64px); padding: var(--space-8) var(--space-4); }
+.welcome-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-lg);
+  padding: var(--space-10) var(--space-12);
+  max-width: 480px; width: 100%;
+  border: 1px solid var(--color-border);
+  text-align: center;
+}
+.welcome-icon { margin-inline: auto; margin-bottom: var(--space-6); color: var(--color-primary); }
+.welcome-title { font-family: var(--font-display); font-size: var(--text-xl); margin-bottom: var(--space-2); }
+.welcome-subtitle { color: var(--color-text-muted); font-size: var(--text-sm); margin-bottom: var(--space-8); }
+
+.targa-list { display: flex; flex-direction: column; gap: var(--space-3); margin-bottom: var(--space-6); }
+.targa-item {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--color-surface-offset);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  transition: background var(--transition), box-shadow var(--transition);
+}
+.targa-item:hover { background: var(--color-primary-highlight); box-shadow: var(--shadow-sm); }
+.targa-item.active { background: var(--color-primary-highlight); border-color: var(--color-primary); }
+.targa-label { font-weight: 600; font-size: var(--text-base); letter-spacing: 0.05em; color: var(--color-text); }
+.targa-meta { font-size: var(--text-xs); color: var(--color-text-muted); }
+.targa-actions { display: flex; gap: var(--space-2); }
+
+.add-targa-form { display: flex; gap: var(--space-2); margin-bottom: var(--space-6); }
+.add-targa-form input { flex: 1; padding: var(--space-3) var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--color-surface-2); font-size: var(--text-sm); color: var(--color-text); text-transform: uppercase; letter-spacing: 0.08em; }
+.add-targa-form input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px oklch(from var(--color-primary) l c h / 0.15); }
+
+/* ── Buttons ─────────────────────────────────── */
+.btn { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 500; cursor: pointer; border: none; transition: background var(--transition), box-shadow var(--transition), color var(--transition); white-space: nowrap; }
+.btn-primary { background: var(--color-primary); color: #fff; }
+.btn-primary:hover { background: var(--color-primary-hover); box-shadow: var(--shadow-sm); }
+.btn-primary:active { background: var(--color-primary-active); }
+.btn-secondary { background: var(--color-surface-offset); color: var(--color-text); border: 1px solid var(--color-border); }
+.btn-secondary:hover { background: var(--color-divider); }
+.btn-ghost { background: transparent; color: var(--color-text-muted); padding: var(--space-2); border-radius: var(--radius-md); }
+.btn-ghost:hover { background: var(--color-surface-offset); color: var(--color-text); }
+.btn-danger { background: #fee2e2; color: #9b1c1c; border: 1px solid #fca5a5; }
+[data-theme="dark"] .btn-danger { background: #4c1a1a; color: #f87171; border-color: #7f1d1d; }
+.btn-danger:hover { background: #fecaca; }
+.btn-sm { padding: var(--space-1) var(--space-3); font-size: var(--text-xs); border-radius: var(--radius-sm); }
+.btn-icon { padding: var(--space-2); border-radius: var(--radius-md); }
+.btn-full { width: 100%; justify-content: center; }
+
+/* ── App Screen ──────────────────────────────── */
+#screen-app { display: none; }
+.app-header-bar {
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+.app-title { font-family: var(--font-display); font-size: var(--text-xl); }
+.vehicle-badge {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  background: var(--color-primary-highlight);
+  color: var(--color-primary);
+  border: 1px solid color-mix(in oklch, var(--color-primary) 30%, transparent);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm); font-weight: 600; letter-spacing: 0.06em;
+}
+.app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-6); }
+@media (max-width: 768px) { .app-grid { grid-template-columns: 1fr; } }
+
+/* ── Cards ───────────────────────────────────── */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-divider);
+  background: var(--color-surface-offset);
+}
+.card-title { font-size: var(--text-sm); font-weight: 600; display: flex; align-items: center; gap: var(--space-2); color: var(--color-text); }
+.card-body { padding: var(--space-5); }
+
+/* ── Upload Zone ─────────────────────────────── */
+.upload-zone {
+  border: 2px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-10) var(--space-6);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color var(--transition), background var(--transition);
+  position: relative;
+  background: var(--color-surface-2);
+}
+.upload-zone:hover, .upload-zone.drag-over {
+  border-color: var(--color-primary);
+  background: var(--color-primary-highlight);
+}
+.upload-zone input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+.upload-zone-icon { color: var(--color-primary); margin-inline: auto; margin-bottom: var(--space-3); }
+.upload-zone-title { font-size: var(--text-sm); font-weight: 600; margin-bottom: var(--space-1); }
+.upload-zone-hint { font-size: var(--text-xs); color: var(--color-text-muted); }
+
+.ocr-status {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs); font-weight: 500;
+  margin-bottom: var(--space-4);
+}
+.ocr-status.processing { background: oklch(from var(--color-orange) l c h / 0.12); color: var(--color-orange); }
+.ocr-status.done { background: var(--color-success-highlight); color: var(--color-success); }
+.ocr-status.error { background: var(--color-error-highlight); color: var(--color-error); }
+
+.spinner { width: 16px; height: 16px; border: 2px solid transparent; border-top-color: currentColor; border-radius: 50%; animation: spin 0.6s linear infinite; flex-shrink: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Form Fields ─────────────────────────────── */
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  width: 100%;
+  align-items: start;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+  width: 100%;
+}
+
+.form-group.full-span {
+  grid-column: 1 / -1;
+}
+
+.form-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+.form-input,
+select.form-input,
+input.form-input,
+textarea.form-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-2);
+  font-size: var(--text-sm);
+  line-height: 1.35;
+  color: var(--color-text);
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px oklch(from var(--color-primary) l c h / 0.15);
+}
+
+.form-input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.card-body {
+  padding: var(--space-5);
+  overflow-x: hidden;
+}
+
+#edit-form,
+#manual-form {
+  width: 100%;
+  min-width: 0;
+}
+
+#edit-form .form-group,
+#manual-form .form-group {
+  min-width: 0;
+}
+
+#edit-form .form-input,
+#manual-form .form-input {
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .form-group.full-span {
+    grid-column: auto;
+  }
+
+  .card-body {
+    padding: var(--space-4);
+  }
+}
+
+@media (max-width: 480px) {
+  .form-input,
+  select.form-input,
+  input.form-input,
+  textarea.form-input {
+    padding: 0.85rem 0.95rem;
+    font-size: 16px;
+  }
+
+  .form-label {
+    font-size: 0.72rem;
+  }
+}
+
+/* ── Stats KPIs ──────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+  align-items: stretch;
+}
+
+.kpi-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+}
+
+.kpi-label {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-value {
+  font-family: var(--font-body);
+  font-size: clamp(1.05rem, 1vw, 1.35rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-sub {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Table ───────────────────────────────────── */
+.table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--color-border); }
+.data-table { width: 100%; font-size: var(--text-xs); }
+.data-table th {
+  background: var(--color-surface-offset);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--color-divider);
+  white-space: nowrap;
+}
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-divider);
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tbody tr:hover { background: var(--color-surface-offset); }
+
+.badge {
+  display: inline-flex; align-items: center;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs); font-weight: 600;
+}
+.badge-targa { background: var(--color-primary-highlight); color: var(--color-primary); }
+.badge-type { background: var(--color-surface-offset); color: var(--color-text-muted); border: 1px solid var(--color-border); }
+
+/* ── Tabs ────────────────────────────────────── */
+.tabs { display: flex; gap: 0; border-bottom: 1px solid var(--color-divider); margin-bottom: var(--space-6); }
+.tab-btn {
+  padding: var(--space-3) var(--space-5);
+  font-size: var(--text-sm); font-weight: 500;
+  color: var(--color-text-muted);
+  border-bottom: 2px solid transparent;
+  transition: color var(--transition), border-color var(--transition);
+  background: none; border-top: none; border-left: none; border-right: none;
+  cursor: pointer;
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.tab-btn.active { color: var(--color-primary); border-bottom-color: var(--color-primary); }
+.tab-btn:hover:not(.active) { color: var(--color-text); }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Toast ───────────────────────────────────── */
+#toast-container { position: fixed; bottom: var(--space-6); right: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); z-index: 9999; pointer-events: none; }
+.toast {
+  display: flex; align-items: center; gap: var(--space-3);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  border-radius: var(--radius-lg);
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-sm);
+  animation: toastIn 0.3s ease forwards;
+  pointer-events: auto;
+  max-width: 320px;
+}
+.toast.success { border-left: 3px solid var(--color-success); }
+.toast.error { border-left: 3px solid var(--color-error); }
+@keyframes toastIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+/* ── Empty State ─────────────────────────────── */
+.empty-state { display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--space-12) var(--space-8); color: var(--color-text-muted); }
+.empty-state-icon { color: var(--color-text-faint); margin-bottom: var(--space-4); }
+.empty-state h3 { color: var(--color-text); font-size: var(--text-base); margin-bottom: var(--space-2); }
+.empty-state p { font-size: var(--text-sm); max-width: 36ch; }
+
+/* ── Progress bar ────────────────────────────── */
+.progress-bar { height: 4px; background: var(--color-divider); border-radius: var(--radius-full); overflow: hidden; margin-bottom: var(--space-2); }
+.progress-bar-fill { height: 100%; background: var(--color-primary); border-radius: var(--radius-full); transition: width 0.3s ease; width: 0%; }
+
+/* ── Top bar icons ───────────────────────────── */
+.current-vehicle { display: flex; align-items: center; gap: var(--space-2); font-size: var(--text-sm); color: var(--color-text-muted); }
+.divider-v { width: 1px; height: 20px; background: var(--color-divider); }
+
+/* ── Responsive ──────────────────────────────── */
+@media (max-width: 640px) {
+  .welcome-card { padding: var(--space-8) var(--space-6); }
+  .main-content { padding: var(--space-4) var(--space-4); }
+  .topbar { padding: var(--space-3) var(--space-4); }
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="app-layout">
+
+  <!-- Top Bar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <!-- SVG Logo -->
+      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-label="FuelScan logo" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="8" fill="var(--color-primary)"/>
+        <path d="M10 24V10a2 2 0 012-2h8a2 2 0 012 2v3l2 2v7a1 1 0 01-2 0v-6l-1.5-1.5V10H12v14H10z" fill="white" opacity="0.9"/>
+        <circle cx="16" cy="17" r="3" fill="none" stroke="white" stroke-width="1.5"/>
+        <path d="M16 15v2l1 1" stroke="white" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <span class="topbar-brand-name">Fuel<span>Scan</span></span>
+    </div>
+    <div class="topbar-actions">
+      <div class="current-vehicle" id="topbar-vehicle" style="display:none">
+        <i data-lucide="car" style="width:16px;height:16px;"></i>
+        <span id="topbar-targa-text">—</span>
+        <div class="divider-v"></div>
+      </div>
+      <button class="btn-ghost btn-icon" id="btn-change-vehicle" title="Cambia veicolo" style="display:none" aria-label="Cambia veicolo">
+        <i data-lucide="repeat" style="width:18px;height:18px;"></i>
+      </button>
+      <button class="btn-ghost btn-icon" id="theme-toggle" data-theme-toggle aria-label="Cambia tema">
+        <i data-lucide="sun" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- Screen 1: Selezione Veicolo -->
+  <div id="screen-vehicles" class="main-content" style="max-width:100%; padding: var(--space-8) var(--space-4);">
+    <div class="welcome-card">
+      <div class="welcome-icon">
+        <svg width="56" height="56" viewBox="0 0 56 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="28" cy="28" r="28" fill="var(--color-primary-highlight)"/>
+          <path d="M16 36V24a4 4 0 014-4h16a4 4 0 014 4v5l4 4v5a2 2 0 01-4 0v-4l-3-3V24H20v12H16z" fill="var(--color-primary)" opacity="0.85"/>
+          <circle cx="28" cy="32" r="4" fill="none" stroke="var(--color-primary)" stroke-width="2"/>
+          <line x1="28" y1="20" x2="28" y2="24" stroke="var(--color-primary)" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <h1 class="welcome-title">Seleziona il veicolo</h1>
+      <p class="welcome-subtitle">Scegli una targa esistente o aggiungine una nuova per registrare i rifornimenti.</p>
+
+      <div class="add-targa-form">
+        <input type="text" id="new-targa-input" placeholder="ES. AB123CD" maxlength="10" autocomplete="off" spellcheck="false" aria-label="Nuova targa">
+        <button class="btn btn-primary" id="btn-add-targa">
+          <i data-lucide="plus" style="width:16px;height:16px;"></i>
+          Aggiungi
+        </button>
+      </div>
+
+      <div class="targa-list" id="targa-list">
+        <!-- popolato da JS -->
+      </div>
+
+      <div id="empty-targa" class="empty-state" style="padding: var(--space-6) 0; display:none">
+        <div class="empty-state-icon"><i data-lucide="car" style="width:36px;height:36px;"></i></div>
+        <h3>Nessun veicolo salvato</h3>
+        <p>Inserisci la targa del tuo veicolo per iniziare.</p>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-proceed" style="display:none; margin-top: var(--space-4);">
+        <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+        Continua con il veicolo selezionato
+      </button>
+    </div>
+  </div>
+
+  <!-- Screen 2: App principale -->
+  <div id="screen-app" class="main-content">
+    <div class="app-header-bar">
+      <div>
+        <h1 class="app-title">Rifornimenti</h1>
+        <div style="margin-top: var(--space-2);">
+          <span class="vehicle-badge" id="active-vehicle-badge">
+            <i data-lucide="car" style="width:14px;height:14px;"></i>
+            <span id="badge-targa">—</span>
+          </span>
+        </div>
+      </div>
+      <div style="display:flex; gap: var(--space-2); flex-wrap:wrap;">
+        <button class="btn btn-secondary" id="btn-export-excel">
+          <i data-lucide="download" style="width:16px;height:16px;"></i>
+          Esporta Excel
+        </button>
+      </div>
+    </div>
+
+    <!-- KPI Bar -->
+    <div class="kpi-grid" id="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Totale speso</div>
+        <div class="kpi-value" id="kpi-totale">€ 0,00</div>
+        <div class="kpi-sub" id="kpi-rifornimenti">0 rifornimenti</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Litri totali</div>
+        <div class="kpi-value" id="kpi-litri">0,00 L</div>
+        <div class="kpi-sub">totale erogato</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Prezzo medio/L</div>
+        <div class="kpi-value" id="kpi-prezzo-medio">€ 0,000</div>
+        <div class="kpi-sub">costo unitario medio</div>
+      </div>
+      <div class="kpi-card">
+  <div class="kpi-label">Media km/L</div>
+  <div class="kpi-value" id="kpi-km-litro">—</div>
+  <div class="kpi-sub" id="kpi-km-litro-sub">servono almeno 2 rifornimenti con km</div>
+</div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ultimo rifornim.</div>
+        <div class="kpi-value" id="kpi-ultimo">—</div>
+        <div class="kpi-sub" id="kpi-ultimo-data">nessun dato</div>
+      </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="scan">
+        <i data-lucide="camera" style="width:16px;height:16px;"></i>
+        Scansiona scontrino
+      </button>
+      <button class="tab-btn" data-tab="manual">
+        <i data-lucide="edit-3" style="width:16px;height:16px;"></i>
+        Inserimento manuale
+      </button>
+      <button class="tab-btn" data-tab="history">
+        <i data-lucide="list" style="width:16px;height:16px;"></i>
+        Storico
+      </button>
+    </div>
+
+    <!-- Tab: Scansiona -->
+    <div class="tab-panel active" id="tab-scan">
+      <div class="app-grid">
+        <!-- Upload -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <i data-lucide="image" style="width:16px;height:16px;"></i>
+              Foto scontrino
+            </div>
+          </div>
+<div class="card-body">
+  <!-- Hidden file input, triggered programmatically -->
+  <input
+    type="file"
+    accept="image/*"
+    id="file-input"
+    aria-label="Carica immagine scontrino"
+    style="display:none;"
+  >
+  <div class="upload-zone" id="upload-zone" role="button" tabindex="0" aria-label="Carica foto scontrino">
+    <div class="upload-zone-icon">
+      <i data-lucide="upload-cloud" style="width:40px;height:40px;"></i>
+    </div>
+    <div class="upload-zone-title">Scatta o carica una foto</div>
+    <div class="upload-zone-hint">JPG, PNG, WEBP — clicca o trascina qui</div>
+  </div>
+</div>
+
+<div id="crop-section" style="display:none; margin-top: 1rem;">
+  <div id="crop-area" style="
+    position: relative;
+    max-width: 100%;
+    border: 1px solid #ccc;
+    overflow: hidden;
+  ">
+    <img id="crop-img" src="" alt="Ritaglia scontrino" style="max-width: 100%; display: block;">
+    <!-- Rettangolo di ritaglio semplificato -->
+<div id="crop-box" style="
+  position: absolute;
+  border: 1px solid red;
+  box-sizing: border-box;
+  width: 22%;
+  height: 70%;
+  top: 5%;
+  left: 39%;
+">
+  <div class="crop-handle handle-left"></div>
+  <div class="crop-handle handle-right"></div>
+  <div class="crop-handle handle-top"></div>
+  <div class="crop-handle handle-bottom"></div>
+</div>
+  </div>
+
+  <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+    <button type="button" class="btn btn-secondary btn-sm" id="btn-crop-cancel">
+      Annulla ritaglio
+    </button>
+    <button type="button" class="btn btn-primary btn-sm" id="btn-crop-confirm">
+      Conferma ritaglio
+    </button>
+  </div>
+</div>
+        <!-- Dati estratti -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">
+              <i data-lucide="file-text" style="width:16px;height:16px;"></i>
+              Dati estratti / modifica
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="ocr-review-banner" class="review-banner">
+  Alcuni valori letti dallo scontrino potrebbero non essere affidabili: controlla i campi evidenziati prima di salvare.
+</div>
+<!-- FORM SCANSIONE -->
+<div class="form-grid" id="edit-form">
+  <div class="form-group">
+  <label class="form-label" for="f-orario">Orario</label>
+  <select class="form-input" id="f-orario">
+        <option value="Diurno">DIURNO</option>
+    <option value="Notturno">NOTTURNO</option>
+  </select>
+</div>
+  <div class="form-group">
+    <label class="form-label" for="f-data">Data RIFORNIMENTO</label>
+    <input id="f-data" class="form-input" type="text" placeholder="gg/mm/aaaa">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="f-ora">Ora RIFORNIMENTO</label>
+    <input class="form-input" type="time" id="f-ora">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="f-litri">LITRI CARBURANTE</label>
+    <input class="form-input" type="text" inputmode="decimal" id="f-litri" placeholder="es. 42,50">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="f-prezzo-unitario">€/Litro</label>
+    <input class="form-input" type="text" inputmode="decimal" id="f-prezzo-unitario" placeholder="es. 1,879">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="f-totale-costo">Totale EURO</label>
+    <input class="form-input" type="text" inputmode="decimal" id="f-totale-costo" placeholder="es. 79,85">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="f-tipo">Tipo carburante</label>
+    <select class="form-input" id="f-tipo">
+      <option value="">Seleziona…</option>
+      <option value="Benzina">Benzina</option>
+      <option value="Diesel">Diesel</option>
+    </select>
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="f-km">KM AL RIFORNIMENTO</label>
+    <input class="form-input" type="text" inputmode="numeric" id="f-km" placeholder="es. 87450">
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="f-id-autista">ID autista</label>
+    <input class="form-input" type="text" id="f-id-autista" placeholder="es. 12345">
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="f-note">Note</label>
+    <input class="form-input" type="text" id="f-note" placeholder="Note aggiuntive…">
+  </div>
+</div>
+            <div style="margin-top: var(--space-5); display: flex; gap: var(--space-3);">
+              <button class="btn btn-primary btn-full" id="btn-save-rifornimento">
+                <i data-lucide="save" style="width:16px;height:16px;"></i>
+                Salva rifornimento
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Manuale -->
+    <div class="tab-panel" id="tab-manual">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title"><i data-lucide="edit-3" style="width:16px;height:16px;"></i> Inserimento manuale</div>
+        </div>
+        <div class="card-body">
+<!-- FORM MANUALE -->
+<div class="form-grid" id="manual-form">
+    <div class="form-group">
+  <label class="form-label" for="m-orario">Orario</label>
+  <select class="form-input" id="m-orario">
+       <option value="Diurno">DIURNO</option>
+    <option value="Notturno">NOTTURNO</option>
+  </select>
+  <div class="form-group">
+    <label class="form-label" for="m-data">DATA RIFORNIMENTO</label>
+    <input id="m-data" class="form-input" type="text" placeholder="gg/mm/aaaa">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="m-ora">ORA RIFORNIMENTO</label>
+    <input class="form-input" type="time" id="m-ora">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="m-litri">LITRI CARBURANTE</label>
+    <input class="form-input" type="text" inputmode="decimal" id="m-litri" placeholder="es. 42,50">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="m-prezzo-unitario">€/Litro</label>
+    <input class="form-input" type="text" inputmode="decimal" id="m-prezzo-unitario" placeholder="es. 1,879">
+  </div>
+  <div class="form-group">
+    <label class="form-label" for="m-totale-costo">Totale (€)</label>
+    <input class="form-input" type="text" inputmode="decimal" id="m-totale-costo" placeholder="es. 79,85">
+  </div>
+</div>
+  <div class="form-group">
+    <label class="form-label" for="m-tipo">Tipo carburante</label>
+    <select class="form-input" id="m-tipo">
+      <option value="">Seleziona…</option>
+      <option value="Benzina">Benzina</option>
+      <option value="Diesel">Diesel</option>
+          </select>
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="m-km">KM AL RIFORNIMENTO</label>
+    <input class="form-input" type="text" inputmode="numeric" id="m-km" placeholder="es. 87450">
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="m-id-autista">ID autista</label>
+    <input class="form-input" type="text" id="m-id-autista" placeholder="es. 12345">
+  </div>
+  <div class="form-group full-span">
+    <label class="form-label" for="m-note">Note</label>
+    <input class="form-input" type="text" id="m-note" placeholder="Note aggiuntive…">
+  </div>
+</div>
+          <div style="margin-top: var(--space-5); display:flex; gap: var(--space-3);">
+            <button class="btn btn-primary btn-full" id="btn-save-manual">
+              <i data-lucide="save" style="width:16px;height:16px;"></i>
+              Salva rifornimento
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Storico -->
+    <div class="tab-panel" id="tab-history">
+      <div id="history-empty" class="empty-state" style="display:none">
+        <div class="empty-state-icon"><i data-lucide="receipt" style="width:40px;height:40px;"></i></div>
+        <h3>Nessun rifornimento ancora</h3>
+        <p>Scansiona uno scontrino o inserisci i dati manualmente per iniziare lo storico.</p>
+      </div>
+      <div class="table-wrap" id="history-table-wrap" style="display:none">
+        <table class="data-table" id="history-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Targa</th>
+              <th>Tipo</th>
+              <th>Litri (L)</th>
+              <th>€/L</th>
+              <th>Totale (€)</th>
+              <th>Km</th>
+              <th>Note</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="history-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /screen-app -->
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<script>
+// ── Config ────────────────────────────────────────
+// ── Config ────────────────────────────────────────
+// Imposta qui l'URL del tuo server (Apps Script)
+const SERVER_URL = 'https://script.google.com/macros/s/AKfycbxmjGcFRZjxGJanNhIlRisTIMJ5swludhqE5gjyc-AHJAPna5SEgJlaBdHdacukj8KHsw/exec';
+
+const EXCEL_COLUMNS = {
+  orario: 'ORARIO',
+  idAutista: 'CODICE AUTISTA',
+  targa: 'TARGA',
+  data: 'DATA RIFORNIMENTO',
+  ora: 'ORA RIFORNIMENTO',
+  litri: 'LITRI CARBURANTE',
+  prezzoUnitario: 'PREZZO €/l',
+  totale: 'TOTALE EURO',
+  km: 'KM AL RIFORNIMENTO',
+  note: 'NOTE'
+};
+// ── State ──────────────────────────────────────
+let vehicles = JSON.parse(localStorage.getItem('fs_vehicles') || '[]');
+let rifornimenti = JSON.parse(localStorage.getItem('fs_data') || '[]');
+let activeTarga = null;
+
+// ── Init ───────────────────────────────────────
+document.addEventListener('DOMContentLoaded', () => {
+  lucide.createIcons();
+  initTheme();
+  renderVehicleList();
+  setupListeners();
+  setupCameraGuide();
+  setDefaultDate();
+});
+
+function initTheme() {
+  const toggle = document.getElementById('theme-toggle'); 
+  let d = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', d);
+  updateThemeIcon(toggle, d);
+  toggle.addEventListener('click', () => {
+    d = d === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', d);
+    updateThemeIcon(toggle, d);
+  });
+}
+function updateThemeIcon(btn, theme) {
+  btn.innerHTML = theme === 'dark'
+    ? '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>';
+}
+function setDefaultDate() {
+  const fData = document.getElementById('f-data');
+  const mData = document.getElementById('m-data');
+  const fOra = document.getElementById('f-ora');
+  const mOra = document.getElementById('m-ora');
+
+  if (fData) fData.value = '';
+  if (mData) mData.value = '';
+  if (fOra) fOra.value = '';
+  if (mOra) mOra.value = '';
+}
+
+// ── Vehicle Screen ─────────────────────────────
+function renderVehicleList() {
+  const list = document.getElementById('targa-list');
+  const empty = document.getElementById('empty-targa');
+  const proceedBtn = document.getElementById('btn-proceed');
+  list.innerHTML = '';
+  if (!vehicles.length) {
+    empty.style.display = 'flex';
+    proceedBtn.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  vehicles.forEach(t => {
+    const count = rifornimenti.filter(r => r.targa === t).length;
+    const item = document.createElement('div');
+    item.className = 'targa-item' + (t === activeTarga ? ' active' : '');
+    item.dataset.targa = t;
+    item.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:2px;">
+        <span class="targa-label">${t}</span>
+        <span class="targa-meta">${count} rifornimento${count!==1?'i':''}</span>
+      </div>
+      <div class="targa-actions">
+        <button class="btn btn-sm btn-secondary btn-select-targa" data-targa="${t}" aria-label="Seleziona ${t}">Seleziona</button>
+        <button class="btn btn-sm btn-danger btn-delete-targa" data-targa="${t}" aria-label="Elimina ${t}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+        </button>
+      </div>
+    `;
+    list.appendChild(item);
+  });
+  proceedBtn.style.display = activeTarga ? 'flex' : 'none';
+}
+
+function setupListeners() {
+  // Add vehicle
+  document.getElementById('btn-add-targa').addEventListener('click', addVehicle);
+  document.getElementById('new-targa-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addVehicle();
+  });
+
+  // Proceed
+  document.getElementById('btn-proceed').addEventListener('click', enterApp);
+
+  // Change vehicle
+  document.getElementById('btn-change-vehicle').addEventListener('click', () => {
+    document.getElementById('screen-app').style.display = 'none';
+    document.getElementById('screen-vehicles').style.display = 'flex';
+    document.getElementById('topbar-vehicle').style.display = 'none';
+    document.getElementById('btn-change-vehicle').style.display = 'none';
+  });
+
+  // Targa list delegation
+  document.getElementById('targa-list').addEventListener('click', e => {
+    const selectBtn = e.target.closest('.btn-select-targa');
+    const deleteBtn = e.target.closest('.btn-delete-targa');
+
+    if (selectBtn) {
+      activeTarga = selectBtn.dataset.targa;
+      renderVehicleList();
+    }
+
+    if (deleteBtn) {
+      const t = deleteBtn.dataset.targa;
+      if (confirm(`Eliminare la targa ${t}? I rifornimenti associati verranno conservati.`)) {
+        vehicles = vehicles.filter(v => v !== t);
+        saveVehicles();
+        if (activeTarga === t) activeTarga = null;
+        renderVehicleList();
+      }
+    }
+  });
+
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+
+      btn.classList.add('active');
+      document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+
+      if (btn.dataset.tab === 'history') {
+        renderHistory();
+        updateKPIs('all');
+      } else {
+        updateKPIs('month');
+      }
+    });
+  });
+
+  // File input change
+  document.getElementById('file-input').addEventListener('change', handleFileInput);
+
+
+  // Drag & drop upload zone
+// Drag & drop upload zone
+const zone = document.getElementById('upload-zone');
+zone.addEventListener('click', e => {
+  if (
+    e.target === zone ||
+    e.target.closest('.upload-zone-icon') ||
+    e.target.closest('.upload-zone-title') ||
+    e.target.closest('.upload-zone-hint')
+  ) {
+    document.getElementById('file-input').click();
+  }
+});
+  zone.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      document.getElementById('file-input').click();
+    }
+  });
+  zone.addEventListener('dragover', e => {
+    e.preventDefault();
+    zone.classList.add('drag-over');
+  });
+  zone.addEventListener('dragleave', () => {
+    zone.classList.remove('drag-over');
+  });
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const f = e.dataTransfer.files[0];
+    if (f && f.type.startsWith('image/')) {
+      processImage(f);
+    }
+  });
+
+  // Save buttons
+  document
+    .getElementById('btn-save-rifornimento')
+    .addEventListener('click', () => saveRifornimento('scan'));
+  document
+    .getElementById('btn-save-manual')
+    .addEventListener('click', () => saveRifornimento('manual'));
+
+  // Export
+  document.getElementById('btn-export-excel').addEventListener('click', exportExcel);
+
+  // Auto-calc
+  ['f-litri', 'f-prezzo-unitario'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => autoCalcTotale('f'));
+  });
+  ['m-litri', 'm-prezzo-unitario'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => autoCalcTotale('m'));
+  });
+  document
+    .getElementById('f-totale-costo')
+    .addEventListener('input', () => autoCalcPrezzoUnitario('f'));
+  document
+    .getElementById('m-totale-costo')
+    .addEventListener('input', () => autoCalcPrezzoUnitario('m'));
+
+  // Elementi comuni del crop
+  const cropArea = document.getElementById('crop-area');
+  const cropBox = document.getElementById('crop-box');
+
+  // Drag semplice del crop-box (mouse + touch)
+  if (cropArea && cropBox) {
+    let isDragging = false;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+
+    const getPoint = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    };
+
+    const startDrag = (e) => {
+      e.preventDefault();
+      isDragging = true;
+
+      const areaRect = cropArea.getBoundingClientRect();
+      const boxRect = cropBox.getBoundingClientRect();
+
+      const p = getPoint(e);
+      startX = p.x;
+      startY = p.y;
+      startLeft = (boxRect.left - areaRect.left) / areaRect.width;
+      startTop = (boxRect.top - areaRect.top) / areaRect.height;
+
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', endDrag);
+      document.addEventListener('touchmove', onMove, { passive: false });
+      document.addEventListener('touchend', endDrag);
+      document.addEventListener('touchcancel', endDrag);
+    };
+
+    const onMove = (e) => {
+      if (!isDragging) return;
+      e.preventDefault();
+
+      const areaRect = cropArea.getBoundingClientRect();
+      const p = getPoint(e);
+      const dx = (p.x - startX) / areaRect.width;
+      const dy = (p.y - startY) / areaRect.height;
+
+      let newLeft = startLeft + dx;
+      let newTop = startTop + dy;
+
+      const boxRect = cropBox.getBoundingClientRect();
+      const boxW = boxRect.width / areaRect.width;
+      const boxH = boxRect.height / areaRect.height;
+
+      newLeft = Math.max(0, Math.min(1 - boxW, newLeft));
+      newTop = Math.max(0, Math.min(1 - boxH, newTop));
+
+      cropBox.style.left = (newLeft * 100).toFixed(2) + '%';
+      cropBox.style.top = (newTop * 100).toFixed(2) + '%';
+    };
+
+    const endDrag = () => {
+      isDragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', endDrag);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', endDrag);
+      document.removeEventListener('touchcancel', endDrag);
+    };
+
+    cropBox.addEventListener('mousedown', startDrag);
+    cropBox.addEventListener('touchstart', startDrag, { passive: false });
+  }
+
+  // Resize dai lati del crop-box (mouse + touch)
+  if (cropArea && cropBox) {
+    let resizing = false;
+    let resizeSide = null;
+    let startX = 0;
+    let startY = 0;
+    let startLeft = 0;
+    let startTop = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    const getPointR = (e) => {
+      if (e.touches && e.touches.length > 0) {
+        return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      }
+      return { x: e.clientX, y: e.clientY };
+    };
+
+    const startResize = (side) => (e) => {
+      e.preventDefault();
+      e.stopPropagation(); // evita che parta anche il drag
+
+      const areaRect = cropArea.getBoundingClientRect();
+      const boxRect = cropBox.getBoundingClientRect();
+      const p = getPointR(e);
+
+      resizing = true;
+      resizeSide = side;
+      startX = p.x;
+      startY = p.y;
+      startLeft = (boxRect.left - areaRect.left) / areaRect.width;
+      startTop = (boxRect.top - areaRect.top) / areaRect.height;
+      startWidth = boxRect.width / areaRect.width;
+      startHeight = boxRect.height / areaRect.height;
+
+      document.addEventListener('mousemove', onResizeMove);
+      document.addEventListener('mouseup', endResize);
+      document.addEventListener('touchmove', onResizeMove, { passive: false });
+      document.addEventListener('touchend', endResize);
+      document.addEventListener('touchcancel', endResize);
+    };
+
+    const onResizeMove = (e) => {
+      if (!resizing) return;
+      e.preventDefault();
+
+      const areaRect = cropArea.getBoundingClientRect();
+      const p = getPointR(e);
+      const dx = (p.x - startX) / areaRect.width;
+      const dy = (p.y - startY) / areaRect.height;
+
+      let newLeft = startLeft;
+      let newTop = startTop;
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+
+      const minSize = 0.05; // 5% minimo
+
+      if (resizeSide === 'left') {
+        newLeft = startLeft + dx;
+        newWidth = startWidth - dx;
+        if (newWidth < minSize) {
+          newLeft = startLeft + (startWidth - minSize);
+          newWidth = minSize;
+        }
+        if (newLeft < 0) {
+          newWidth += newLeft;
+          newLeft = 0;
+        }
+      } else if (resizeSide === 'right') {
+        newWidth = startWidth + dx;
+        if (newWidth < minSize) newWidth = minSize;
+        if (startLeft + newWidth > 1) newWidth = 1 - startLeft;
+      } else if (resizeSide === 'top') {
+        newTop = startTop + dy;
+        newHeight = startHeight - dy;
+        if (newHeight < minSize) {
+          newTop = startTop + (startHeight - minSize);
+          newHeight = minSize;
+        }
+        if (newTop < 0) {
+          newHeight += newTop;
+          newTop = 0;
+        }
+      } else if (resizeSide === 'bottom') {
+        newHeight = startHeight + dy;
+        if (newHeight < minSize) newHeight = minSize;
+        if (startTop + newHeight > 1) newHeight = 1 - startTop;
+      }
+
+      cropBox.style.left = (newLeft * 100).toFixed(2) + '%';
+      cropBox.style.top = (newTop * 100).toFixed(2) + '%';
+      cropBox.style.width = (newWidth * 100).toFixed(2) + '%';
+      cropBox.style.height = (newHeight * 100).toFixed(2) + '%';
+    };
+
+    const endResize = () => {
+      resizing = false;
+      resizeSide = null;
+      document.removeEventListener('mousemove', onResizeMove);
+      document.removeEventListener('mouseup', endResize);
+      document.removeEventListener('touchmove', onResizeMove);
+      document.removeEventListener('touchend', endResize);
+      document.removeEventListener('touchcancel', endResize);
+    };
+
+    const hLeft = cropBox.querySelector('.handle-left');
+    const hRight = cropBox.querySelector('.handle-right');
+    const hTop = cropBox.querySelector('.handle-top');
+    const hBottom = cropBox.querySelector('.handle-bottom');
+
+    if (hLeft) {
+      hLeft.addEventListener('mousedown', startResize('left'));
+      hLeft.addEventListener('touchstart', startResize('left'), { passive: false });
+    }
+    if (hRight) {
+      hRight.addEventListener('mousedown', startResize('right'));
+      hRight.addEventListener('touchstart', startResize('right'), { passive: false });
+    }
+    if (hTop) {
+      hTop.addEventListener('mousedown', startResize('top'));
+      hTop.addEventListener('touchstart', startResize('top'), { passive: false });
+    }
+    if (hBottom) {
+      hBottom.addEventListener('mousedown', startResize('bottom'));
+      hBottom.addEventListener('touchstart', startResize('bottom'), { passive: false });
+    }
+  }
+
+  // Tasti ritaglio
+  const btnCropCancel = document.getElementById('btn-crop-cancel');
+  const btnCropConfirm = document.getElementById('btn-crop-confirm');
+
+  if (btnCropCancel) {
+    btnCropCancel.addEventListener('click', () => {
+      const cropSection = document.getElementById('crop-section');
+      if (cropSection) cropSection.style.display = 'none';
+    });
+  }
+
+  if (btnCropConfirm) {
+    btnCropConfirm.addEventListener('click', async () => {
+      const cropImg = document.getElementById('crop-img');
+      const cropBox = document.getElementById('crop-box');
+      const cropSection = document.getElementById('crop-section');
+
+      if (!cropImg || !cropBox) {
+        console.warn('Elementi ritaglio mancanti');
+        return;
+      }
+
+      const imgRect = cropImg.getBoundingClientRect();
+      const boxRect = cropBox.getBoundingClientRect();
+
+      const relX = (boxRect.left - imgRect.left) / imgRect.width;
+      const relY = (boxRect.top - imgRect.top) / imgRect.height;
+      const relW = boxRect.width / imgRect.width;
+      const relH = boxRect.height / imgRect.height;
+
+      const canvas = document.createElement('canvas');
+      const img = new Image();
+      img.src = cropImg.src;
+
+      img.onload = async () => {
+        const sx = img.width * relX;
+        const sy = img.height * relY;
+        const sw = img.width * relW;
+        const sh = img.height * relH;
+
+        canvas.width = sw;
+        canvas.height = sh;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+
+        const croppedDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+
+          if (cropSection) cropSection.style.display = 'none';
+
+        await runOCR(croppedDataUrl);
+      };
+    });
+  }
+}
+
+function setupCameraGuide() {
+  const fileInput = document.getElementById('file-input');
+  const modal = document.getElementById('camera-guide-modal');
+  const btnOpen = document.getElementById('camera-guide-open-camera');
+  const btnClose = document.getElementById('camera-guide-close');
+  const btnCancel = document.getElementById('camera-guide-cancel');
+
+  if (!fileInput || !modal) return;
+
+  const closeGuide = () => {
+    modal.hidden = true;
+    document.body.style.overflow = '';
+  };
+
+  btnClose?.addEventListener('click', closeGuide);
+  btnCancel?.addEventListener('click', closeGuide);
+
+  modal.addEventListener('click', e => {
+    if (e.target.classList.contains('camera-guide-backdrop')) {
+      closeGuide();
+    }
+  });
+
+  btnOpen?.addEventListener('click', () => {
+    closeGuide();
+    fileInput.removeAttribute('capture');
+    fileInput.setAttribute('capture', 'environment');
+    fileInput.accept = 'image/*';
+    fileInput.click();
+  });
+}
+
+function normalizeDecimalInput(value) {
+  return String(value || '')
+    .trim()
+    .replace(/\s/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.');
+}
+
+function parseDecimalInput(value) {
+  if (value == null) return null;
+
+  let s = String(value).trim();
+  if (!s) return null;
+
+  s = s.replace(/\s/g, '');
+  s = s.replace(/\//g, ','); // OCR: 37/85 -> 37,85
+  s = s.replace(/O/g, '0');
+
+  const hasComma = s.includes(',');
+  const hasDot = s.includes('.');
+
+  if (hasComma && hasDot) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else if (hasComma) {
+    s = s.replace(',', '.');
+  } else if (hasDot) {
+    const parts = s.split('.');
+    if (parts.length === 2 && parts[1].length <= 3) {
+      // 72.06 oppure 1.903
+    } else {
+      s = s.replace(/\./g, '');
+    }
+  }
+
+  s = s.replace(/[^\d.]/g, '');
+  const n = parseFloat(s);
+  return Number.isNaN(n) ? null : n;
+}
+
+function formatDecimalIT(value, digits = 2) {
+  if (value == null || value === '' || Number.isNaN(value)) return '';
+  return Number(value).toLocaleString('it-IT', {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
+
+function parseIntegerInput(value) {
+  const raw = String(value || '').replace(/[^\d]/g, '');
+  if (!raw) return null;
+  const n = parseInt(raw, 10);
+  return Number.isNaN(n) ? null : n;
+}
+
+function autoCalcTotale(prefix) {
+  const l = parseDecimalInput(document.getElementById(prefix+'-litri').value);
+  const p = parseDecimalInput(document.getElementById(prefix+'-prezzo-unitario').value);
+  const tEl = document.getElementById(prefix+'-totale-costo');
+  if (l && p && !isNaN(l) && !isNaN(p)) tEl.value = formatDecimalIT(l * p, 2);
+}
+function autoCalcPrezzoUnitario(prefix) {
+  const l = parseDecimalInput(document.getElementById(prefix+'-litri').value);
+  const t = parseDecimalInput(document.getElementById(prefix+'-totale-costo').value);
+  const pEl = document.getElementById(prefix+'-prezzo-unitario');
+  if (l && t && !isNaN(l) && !isNaN(t)) pEl.value = formatDecimalIT(t / l, 3);
+}
+
+function addVehicle() {
+  const input = document.getElementById('new-targa-input');
+  const val = input.value.trim().toUpperCase().replace(/\s/g,'');
+  if (!val) return showToast('Inserisci una targa valida', 'error');
+  if (vehicles.includes(val)) return showToast('Targa già presente', 'error');
+  vehicles.push(val);
+  saveVehicles();
+  activeTarga = val;
+  input.value = '';
+  renderVehicleList();
+  showToast(`Targa ${val} aggiunta`, 'success');
+}
+
+function enterApp() {
+  if (!activeTarga) return showToast('Seleziona prima una targa', 'error');
+  document.getElementById('screen-vehicles').style.display = 'none';
+  document.getElementById('screen-app').style.display = 'block';
+  document.getElementById('topbar-vehicle').style.display = 'flex';
+  document.getElementById('btn-change-vehicle').style.display = 'flex';
+  document.getElementById('topbar-targa-text').textContent = activeTarga;
+  document.getElementById('badge-targa').textContent = activeTarga;
+  renderHistory();
+  updateKPIs();
+}
+
+// ── OCR ────────────────────────────────────────
+function handleFileInput(e) {
+  const f = e.target.files[0];
+  if (f) processImage(f);
+}
+
+function processImage(file) {
+  clearScanFormData();
+
+  const reader = new FileReader();
+
+  reader.onload = (e) => {
+    const src = e.target.result;
+
+    // Preview normale
+// Preview normale: aggiorna solo il testo della zona upload
+document
+  .getElementById('upload-zone')
+  .querySelector('.upload-zone-title').textContent = 'Immagine caricata';
+
+    // Mostra sezione ritaglio
+    const cropSection = document.getElementById('crop-section');
+    const cropImg = document.getElementById('crop-img');
+
+    if (cropSection && cropImg) {
+      cropImg.src = src;
+      cropSection.style.display = 'block';
+    }
+
+    // Aggiorna bottone fotocamera
+    const btnCamera = document.getElementById('btn-camera');
+    if (btnCamera) {
+      btnCamera.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+             fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+        Sostituisci
+      `;
+    }
+  };
+
+  reader.readAsDataURL(file);
+}
+
+async function runOCR(src) {
+  const statusEl = document.getElementById('ocr-status');
+  const statusText = document.getElementById('ocr-status-text');
+  const progressBar = document.getElementById('ocr-progress-bar');
+  const progressFill = document.getElementById('ocr-progress-fill');
+
+  // Se gli elementi non ci sono, salta la parte di UI
+  if (statusEl && statusText && progressBar && progressFill) {
+    statusEl.className = 'ocr-status processing';
+    statusEl.style.display = 'flex';
+    statusText.textContent = 'Analisi OCR in corso…';
+    progressBar.style.display = 'block';
+    progressFill.style.width = '0%';
+  }
+
+  try {
+    const { data: { text } } = await Tesseract.recognize(src, 'ita+eng', {
+      logger: m => {
+        if (m.status === 'recognizing text' && progressFill && statusText) {
+          const pct = Math.round(m.progress * 100);
+          progressFill.style.width = pct + '%';
+          statusText.textContent = `Analisi OCR… ${pct}%`;
+        }
+      }
+    });
+
+    if (progressFill) progressFill.style.width = '100%';
+
+    if (statusEl) {
+      statusEl.className = 'ocr-status done';
+      statusEl.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+             fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24">
+          <polyline points="20 6 9 17 4 12"></polyline>
+        </svg>
+        <span>Testo estratto — verifica i dati</span>
+      `;
+    }
+
+    parseOCRText(text);
+  } catch (err) {
+    if (statusEl) {
+      statusEl.className = 'ocr-status error';
+      statusEl.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+             fill="none" stroke="currentColor" stroke-width="2"
+             viewBox="0 0 24 24">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        <span>Errore OCR — inserisci manualmente</span>
+      `;
+    }
+  }
+}
+
+let ocrReviewState = {
+  needsReview: false,
+  fields: {}
+};
+
+function clearOCRReview() {
+  ocrReviewState = { needsReview: false, fields: {} };
+
+  const banner = document.getElementById('ocr-review-banner');
+  if (banner) banner.style.display = 'none';
+
+  const ids = ['f-data', 'f-ora', 'f-litri', 'f-prezzo-unitario', 'f-totale-costo', 'f-km', 'f-id-autista'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('field-warning', 'field-ok');
+    const help = document.getElementById(id + '-help');
+    if (help) help.remove();
+  });
+}
+
+function markFieldReview(id, message, rawValue = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+
+  ocrReviewState.needsReview = true;
+  ocrReviewState.fields[id] = { message, rawValue };
+
+  el.classList.add('field-warning');
+
+  let help = document.getElementById(id + '-help');
+  if (!help) {
+    help = document.createElement('div');
+    help.id = id + '-help';
+    help.className = 'field-help warning';
+    el.insertAdjacentElement('afterend', help);
+  }
+
+  help.textContent = rawValue
+    ? `Valore letto: "${rawValue}". ${message}`
+    : message;
+
+  const banner = document.getElementById('ocr-review-banner');
+  if (banner) banner.style.display = 'block';
+}
+
+function markFieldOk(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.remove('field-warning');
+  el.classList.add('field-ok');
+
+  const help = document.getElementById(id + '-help');
+  if (help) help.remove();
+}
+
+function attachReviewListeners() {
+  const ids = ['f-data', 'f-ora', 'f-litri', 'f-prezzo-unitario', 'f-totale-costo', 'f-km', 'f-id-autista'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el.dataset.reviewBound === '1') return;
+
+    const handler = () => {
+      if (!ocrReviewState.fields[id]) return;
+      delete ocrReviewState.fields[id];
+      el.classList.remove('field-warning');
+      el.classList.add('field-ok');
+      const help = document.getElementById(id + '-help');
+      if (help) help.remove();
+
+      if (!Object.keys(ocrReviewState.fields).length) {
+        ocrReviewState.needsReview = false;
+        const banner = document.getElementById('ocr-review-banner');
+        if (banner) banner.style.display = 'none';
+      }
+    };
+
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+    el.dataset.reviewBound = '1';
+  });
+}
+function parseOCRText(text) {
+  clearOCRReview();
+  attachReviewListeners();
+  console.log('OCR raw:', text);
+
+  const normalized = String(text || '')
+    .replace(/\r/g, '\n')
+    .replace(/\u00a0/g, ' ')
+    .replace(/[|]/g, '/')
+    .replace(/[“”"]/g, '')
+    .replace(/[‘’]/g, "'")
+    .replace(/O/g, '0');
+
+  const lines = normalized
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean);
+
+  const fullText = lines.join('\n');
+
+  const result = {
+    data: '',
+    ora: '',
+    litri: '',
+    prezzoUnitario: '',
+    totale: '',
+    tipo: '',
+    km: '',
+    idAutista: ''
+  };
+
+  const setIfFound = (id, value) => {
+    const el = document.getElementById(id);
+    if (el) el.value = value;
+  };
+
+  const asNumber = (v) => {
+    if (!v) return null;
+
+    let cleaned = String(v).trim().replace(/\s/g, '');
+    cleaned = cleaned.replace(/\//g, ',');
+    cleaned = cleaned.replace(/O/g, '0');
+
+    const hasComma = cleaned.includes(',');
+    const hasDot = cleaned.includes('.');
+
+    if (hasComma && hasDot) {
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else if (hasComma) {
+      cleaned = cleaned.replace(',', '.');
+    } else if (hasDot) {
+      const parts = cleaned.split('.');
+      if (!(parts.length === 2 && parts[1].length <= 3)) {
+        cleaned = cleaned.replace(/\./g, '');
+      }
+    }
+
+    cleaned = cleaned.replace(/[^\d.]/g, '');
+    const n = parseFloat(cleaned);
+    return Number.isNaN(n) ? null : n;
+  };
+
+  const asComma = (v, decimals = 2) => {
+    const n = asNumber(v);
+    if (n == null) return '';
+    return n.toLocaleString('it-IT', {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals
+    });
+  };
+
+const toDisplayDate = (raw) => {
+  if (!raw) return '';
+
+  const p = String(raw).split(/[\/.\-]/);
+  if (p.length !== 3) return '';
+
+  let yyyy, mm, dd;
+
+  if (p[0].length === 4) {
+    yyyy = p[0];
+    mm = p[1].padStart(2, '0');
+    dd = p[2].padStart(2, '0');
+  } else {
+    dd = p[0].padStart(2, '0');
+    mm = p[1].padStart(2, '0');
+    yyyy = p[2].length === 2 ? ('20' + p[2]) : p[2];
+  }
+
+  const iso = `${yyyy}-${mm}-${dd}`;
+  if (isNaN(Date.parse(iso))) return '';
+
+  return `${dd}/${mm}/${yyyy}`;
+};
+
+  const normalizeTimeValue = (hh, mm) => {
+    const h = parseInt(hh, 10);
+    const m = parseInt(mm, 10);
+    if (Number.isNaN(h) || Number.isNaN(m)) return '';
+    if (h < 0 || h > 23 || m < 0 || m > 59) return '';
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  };
+
+  const normalizeCompactTime = (raw) => {
+    if (!raw) return '';
+    const s = String(raw).trim().replace(/[^\d:.]/g, '');
+
+    let m = s.match(/^([01]?\d|2[0-3])[:.]([0-5]\d)$/);
+    if (m) return normalizeTimeValue(m[1], m[2]);
+
+    m = s.match(/^([01]\d|2[0-3])([0-5]\d)$/);
+    if (m) return normalizeTimeValue(m[1], m[2]);
+
+    return '';
+  };
+
+  const extractTimeNearDate = (line) => {
+    const m = line.match(
+      /\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2})\b[\s\-–—,;]*(?:ore|ora|h|alle)?\s*([0-2]?\d[:.]?[0-5]\d)\b/i
+    );
+    if (!m) return null;
+
+return {
+  data: toDisplayDate(m[1]),
+  ora: normalizeCompactTime(m[2])
+};
+  };
+
+  const extractLooseTime = (txt) => {
+    const m = txt.match(/\b([0-2]?\d[:.]?[0-5]\d)\b/);
+    if (!m) return '';
+    return normalizeCompactTime(m[1]);
+  };
+
+  // 1) Data + ora sulla stessa riga
+  for (const line of lines) {
+    const found = extractTimeNearDate(line);
+    if (found) {
+      if (found.data) result.data = found.data;
+      if (found.ora) result.ora = found.ora;
+      if (result.data || result.ora) break;
+    }
+  }
+
+  // 2) Fallback data
+  if (!result.data) {
+    for (const line of lines) {
+      const m = line.match(/\b(\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{4}[\/.\-]\d{1,2}[\/.\-]\d{1,2})\b/);
+      if (m) {
+       const formatted = toDisplayDate(m[1]);
+if (formatted) {
+  result.data = formatted;
+  break;
+}
+      }
+    }
+  }
+
+  // 3) Fallback ora
+  if (!result.ora) {
+    for (const line of lines) {
+      const t = extractLooseTime(line);
+      if (t) {
+        result.ora = t;
+        break;
+      }
+    }
+  }
+
+  // Litri
+  for (const line of lines) {
+    const m = line.match(/quantit[aà]'?\s*[:=]?\s*([\d.,\/]+)/i);
+    if (m) {
+      result.litri = asComma(m[1], 2);
+      break;
+    }
+  }
+
+  if (!result.litri) {
+    for (const line of lines) {
+      const m =
+        line.match(/\b([\d.,\/]+)\s*(?:l|lt|litri)\b/i) ||
+        line.match(/\b(?:l|lt|litri)\s*[:=]?\s*([\d.,\/]+)\b/i);
+      if (m) {
+        result.litri = asComma(m[1], 2);
+        break;
+      }
+    }
+  }
+
+  // Prezzo unitario
+  for (const line of lines) {
+    const m =
+      line.match(/euro\s*\/\s*litro\s*[:=]?\s*([\d.,\/]+)/i) ||
+      line.match(/€\s*\/\s*l(?:itro)?\s*[:=]?\s*([\d.,\/]+)/i) ||
+      line.match(/prezzo\s*[:=]?\s*([\d.,\/]+)/i);
+
+    if (m) {
+      const parsed = asNumber(m[1]);
+      if (parsed && parsed > 1.2 && parsed < 3.5) {
+        result.prezzoUnitario = formatDecimalIT(parsed, 3);
+        break;
+      }
+    }
+  }
+
+  // Totale
+  for (const line of lines) {
+    const m =
+      line.match(/totale\s*[:=]?\s*€?\s*([\d.,\/]+)/i) ||
+      line.match(/importo\s*[:=]?\s*€?\s*([\d.,\/]+)/i) ||
+      line.match(/importo\s+euro\s*[:=]?\s*([\d.,\/]+)/i);
+    if (m) {
+      result.totale = asComma(m[1], 2);
+      break;
+    }
+  }
+
+  // KM
+  for (const line of lines) {
+    const m = line.match(/\bkm\b\s*[:=]?\s*([\d.]+)/i);
+    if (m) {
+      result.km = m[1].replace(/\./g, '');
+      break;
+    }
+  }
+
+  // ID autista
+  for (const line of lines) {
+    const m = line.match(/id\s*autista\s*[:=]?\s*([A-Z0-9\-\/]+)/i);
+    if (m) {
+      result.idAutista = m[1].trim();
+      break;
+    }
+  }
+
+  // Tipo carburante
+  const tipoMatch = fullText.match(/\b(benzina|diesel|gasolio|gpl|metano|elettrico|elettrica)\b/i);
+  if (tipoMatch) {
+    const map = {
+      benzina: 'Benzina',
+      diesel: 'Diesel',
+      gasolio: 'Diesel',
+      gpl: 'GPL',
+      metano: 'Metano',
+      elettrico: 'Elettrico',
+      elettrica: 'Elettrico'
+    };
+    result.tipo = map[tipoMatch[1].toLowerCase()] || '';
+  }
+
+  // Scarta prezzo unitario assurdo
+if (result.prezzoUnitario) {
+  const p = asNumber(result.prezzoUnitario);
+  if (!p || p < 1.2 || p > 3.0) {
+    markFieldReview(
+      'f-prezzo-unitario',
+      'Non riesco a confermare questo prezzo €/L: controllalo o correggilo.',
+      result.prezzoUnitario
+    );
+  } else {
+    markFieldOk('f-prezzo-unitario');
+  }
+} else {
+  markFieldReview(
+    'f-prezzo-unitario',
+    'Non sono riuscito a leggere il prezzo €/L. Inseriscilo manualmente.'
+  );
+}
+  // Se manca il prezzo unitario ma ho litri + totale, lo ricavo
+  if (!result.prezzoUnitario && result.litri && result.totale) {
+    const l = parseDecimalInput(result.litri);
+    const t = parseDecimalInput(result.totale);
+    if (l > 0 && t > 0) {
+      result.prezzoUnitario = formatDecimalIT(t / l, 3);
+    }
+  }
+
+  // Calcolo totale solo se manca davvero
+  if (!result.totale && result.litri && result.prezzoUnitario) {
+    const l = parseDecimalInput(result.litri);
+    const p = parseDecimalInput(result.prezzoUnitario);
+    if (l > 0 && p > 0) {
+      result.totale = formatDecimalIT(l * p, 2);
+    }
+  }
+
+  // Fill form
+  setIfFound('f-data', result.data || '');
+  setIfFound('f-litri', result.litri || '');
+  setIfFound('f-prezzo-unitario', result.prezzoUnitario || '');
+  setIfFound('f-totale-costo', result.totale || '');
+  setIfFound('f-tipo', result.tipo || '');
+  setIfFound('f-km', result.km || '');
+  setIfFound('f-id-autista', result.idAutista || '');
+
+  const oraEl = document.getElementById('f-ora');
+  if (oraEl) {
+    oraEl.value = '';
+    if (result.ora && /^\d{2}:\d{2}$/.test(result.ora)) {
+      oraEl.value = result.ora;
+    }
+  }
+
+  // Review finale DOPO l'estrazione
+  if (result.data) {
+    markFieldOk('f-data');
+  } else {
+    markFieldReview('f-data', 'data da controllare');
+  }
+
+  if (result.ora) {
+    markFieldOk('f-ora');
+  } else {
+    markFieldReview('f-ora', 'ora non riconosciuta con certezza');
+  }
+
+if (result.litri) {
+  const l = asNumber(result.litri);
+  if (!l || l < 2 || l > 150) {
+    markFieldReview(
+      'f-litri',
+      'Non riesco a confermare i litri letti: controllali o correggili.',
+      result.litri
+    );
+  } else {
+    markFieldOk('f-litri');
+  }
+} else {
+  markFieldReview(
+    'f-litri',
+    'Non sono riuscito a leggere i litri. Inseriscili manualmente.'
+  );
+}
+
+if (result.totale) {
+  const t = asNumber(result.totale);
+  if (!t || t <= 0 || t > 500) {
+    markFieldReview(
+      'f-totale-costo',
+      'Il totale letto non è abbastanza affidabile: controllalo.',
+      result.totale
+    );
+  } else {
+    markFieldOk('f-totale-costo');
+  }
+} else {
+  markFieldReview(
+    'f-totale-costo',
+    'Non sono riuscito a leggere il totale. Inseriscilo manualmente.'
+  );
+}
+
+  if (result.prezzoUnitario) {
+    const p = asNumber(result.prezzoUnitario);
+    if (!p || p < 1.2 || p > 3.0) {
+      markFieldReview('f-prezzo-unitario', 'prezzo €/L sospetto, controlla il valore');
+    } else {
+      markFieldOk('f-prezzo-unitario');
+    }
+  } else {
+    markFieldReview('f-prezzo-unitario', 'prezzo €/L non letto bene');
+  }
+
+  console.log('OCR parsed:', result);
+  console.log('OCR ora finale:', result.ora);
+}
+function resetScan() {
+  clearScanFormData();
+
+  const cropSection = document.getElementById('crop-section');
+  const cropImg = document.getElementById('crop-img');
+  if (cropSection) cropSection.style.display = 'none';
+  if (cropImg) cropImg.src = '';
+
+  document.getElementById('file-input').value = '';
+  document
+    .getElementById('upload-zone')
+    .querySelector('.upload-zone-title').textContent = 'Scatta o carica una foto';
+
+  const btnCamera = document.getElementById('btn-camera');
+  if (btnCamera) {
+    btnCamera.innerHTML = `
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16"
+           fill="none" stroke="currentColor" stroke-width="2"
+           viewBox="0 0 24 24">
+        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+        <circle cx="12" cy="13" r="4"/>
+      </svg>
+      Scatta / Carica
+    `;
+  }
+
+  clearOCRReview();
+}
+
+function setIfFoundSafe(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.value = value;
+}
+
+function clearScanFormData() {
+  clearOCRReview();
+
+  setIfFoundSafe('f-data', '');
+  setIfFoundSafe('f-ora', '');
+  setIfFoundSafe('f-orario', '');
+  setIfFoundSafe('f-litri', '');
+  setIfFoundSafe('f-prezzo-unitario', '');
+  setIfFoundSafe('f-totale-costo', '');
+  setIfFoundSafe('f-tipo', '');
+  setIfFoundSafe('f-km', '');
+  setIfFoundSafe('f-id-autista', '');
+  setIfFoundSafe('f-note', '');
+
+  const banner = document.getElementById('ocr-review-banner');
+  if (banner) banner.style.display = 'none';
+}
+
+  const statusEl = document.getElementById('ocr-status');
+  const progressBar = document.getElementById('ocr-progress-bar');
+  const progressFill = document.getElementById('ocr-progress-fill');
+
+  if (statusEl) {
+    statusEl.style.display = 'none';
+    statusEl.className = 'ocr-status processing';
+    statusEl.innerHTML = '<div class="spinner"></div><span id="ocr-status-text">Analisi in corso…</span>';
+  }
+
+  if (progressBar) progressBar.style.display = 'none';
+  if (progressFill) progressFill.style.width = '0%';
+
+function displayDateToISO(value) {
+  if (!value) return '';
+
+  const v = String(value).trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(v)) {
+    return v;
+  }
+
+  const m = v.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return '';
+
+  const dd = m[1];
+  const mm = m[2];
+  const yyyy = m[3];
+
+  const iso = `${yyyy}-${mm}-${dd}`;
+  return isNaN(Date.parse(iso)) ? '' : iso;
+}
+
+function setDefaultDate() {
+  const fData = document.getElementById('f-data');
+  const mData = document.getElementById('m-data');
+  const fOra = document.getElementById('f-ora');
+  const mOra = document.getElementById('m-ora');
+
+  if (fData) fData.value = '';
+  if (mData) mData.value = '';
+  if (fOra) fOra.value = '';
+  if (mOra) mOra.value = '';
+}
+
+async function saveRifornimento(source) {
+  // 1) Avviso se ci sono campi OCR da rivedere
+  if (
+    source === 'scan' &&
+    ocrReviewState.needsReview &&
+    Object.keys(ocrReviewState.fields).length
+  ) {
+    const ok = confirm('Ci sono campi OCR da verificare evidenziati nel form. Vuoi salvarli comunque?');
+    if (!ok) return;
+  }
+
+  // 2) Prefisso form: f- (scan) oppure m- (manuale)
+  const prefix = source === 'scan' ? 'f' : 'm';
+
+  // 3) Controllo campi obbligatori PRIMA di creare il record
+  const orarioEl      = document.getElementById(prefix + '-orario');
+  const dataEl        = document.getElementById(prefix + '-data');
+  const oraEl         = document.getElementById(prefix + '-ora');
+  const litriEl       = document.getElementById(prefix + '-litri');
+  const prezzoEl      = document.getElementById(prefix + '-prezzo-unitario');
+  const totaleEl      = document.getElementById(prefix + '-totale-costo');
+  const kmEl          = document.getElementById(prefix + '-km');
+  const idAutistaEl   = document.getElementById(prefix + '-id-autista');
+
+  const missing = [];
+
+  if (!orarioEl?.value.trim())    missing.push('Orario');
+  if (!dataEl?.value.trim())      missing.push('Data rifornimento');
+  if (!oraEl?.value.trim())       missing.push('Ora rifornimento');
+  if (!litriEl?.value.trim())     missing.push('Litri carburante');
+  if (!prezzoEl?.value.trim())    missing.push('€/Litro');
+  if (!totaleEl?.value.trim())    missing.push('Totale EURO');
+  if (!kmEl?.value.trim())        missing.push('KM al rifornimento');
+  if (!idAutistaEl?.value.trim()) missing.push('ID autista');
+
+  if (missing.length > 0) {
+    showToast('Compila correttamente: ' + missing.join(', '), 'error');
+    return;
+  }
+
+  // 4) Costruzione record con parsing numeri/date
+  const record = {
+    id: Date.now(),
+    targa: activeTarga,
+    orario: orarioEl.value || '',
+    data: displayDateToISO(dataEl.value || ''),
+    ora: oraEl.value || '',
+    litri: parseDecimalInput(litriEl.value),
+    prezzoUnitario: parseDecimalInput(prezzoEl.value),
+    totale: parseDecimalInput(totaleEl.value),
+    tipo: document.getElementById(prefix + '-tipo').value || '',
+    km: parseIntegerInput(kmEl.value),
+    idAutista: idAutistaEl?.value.trim() || '',
+    note: document.getElementById(prefix + '-note').value || ''
+  };
+
+  // 5) Calcoli di completamento automatico
+  if (record.totale == null && record.litri != null && record.prezzoUnitario != null) {
+    record.totale = Number((record.litri * record.prezzoUnitario).toFixed(2));
+  }
+
+  if (!record.data) {
+    showToast('Data non trovata o non valida. Inseriscila manualmente.', 'error');
+    return;
+  }
+
+  if (record.litri == null && record.totale == null) {
+    showToast('Inserisci almeno litri o totale', 'error');
+    return;
+  }
+
+  if (!record.prezzoUnitario && record.litri != null && record.totale != null && record.litri > 0) {
+    record.prezzoUnitario = Number((record.totale / record.litri).toFixed(3));
+  }
+
+  if (!record.totale && record.litri != null && record.prezzoUnitario != null && record.litri > 0) {
+    record.totale = Number((record.litri * record.prezzoUnitario).toFixed(2));
+  }
+
+  // 6) Salvataggio locale
+  rifornimenti.push(record);
+  saveData();
+  // 7) Invio opzionale a Google Sheets tramite Apps Script
+  if (SERVER_URL) {
+    const btn = document.getElementById(
+      source === 'scan' ? 'btn-save-rifornimento' : 'btn-save-manual'
+    );
+    const origHTML = btn.innerHTML;
+    btn.innerHTML = '<div class="spinner"></div> Invio a Google Sheets…';
+    btn.disabled = true;
+
+    try {
+      const res = await fetch(SERVER_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ record })
+      });
+
+      const json = await res.json();
+
+      if (json.success) {
+        showToast('Salvato su Google Sheets ✓', 'success');
+      } else {
+        showToast('Errore Google Sheets — salvato solo in locale', 'error');
+      }
+    } catch (err) {
+      showToast('Sheets non raggiungibile — salvato solo in locale', 'error');
+      console.warn('Sheets error:', err);
+    } finally {
+      btn.innerHTML = origHTML;
+      btn.disabled = false;
+    }
+  } else {
+    showToast('Rifornimento salvato in locale!', 'success');
+  }
+
+  // 8) Pulizia e refresh UI
+  clearForm(prefix);
+  updateKPIs();
+  renderVehicleList();
+  if (source === 'scan') resetScan();
+}
+function dataURLtoBlob(dataUrl) {
+  const arr = dataUrl.split(',');
+  const mime = arr[0].match(/:(.*?);/)[1];
+  const bstr = atob(arr[1]);
+  const u8 = new Uint8Array(bstr.length);
+  for (let i = 0; i < bstr.length; i++) {
+    u8[i] = bstr.charCodeAt(i);
+  }
+  return new Blob([u8], { type: mime });
+}
+
+function clearForm(prefix) {
+  ['orario', 'litri', 'prezzo-unitario', 'totale-costo', 'km', 'id-autista', 'note'].forEach(f => {
+    const el = document.getElementById(prefix + '-' + f);
+    if (el) el.value = '';
+  });
+
+  const tipoEl = document.getElementById(prefix + '-tipo');
+  if (tipoEl) tipoEl.value = '';
+
+  const dataEl = document.getElementById(prefix + '-data');
+  const oraEl = document.getElementById(prefix + '-ora');
+  if (dataEl) dataEl.value = '';
+  if (oraEl) oraEl.value = '';
+}
+// ── History ────────────────────────────────────
+function renderHistory() {
+  const records = rifornimenti
+    .filter(r => r.targa === activeTarga)
+    .sort((a,b) => (b.data + (b.ora || '')).localeCompare(a.data + (a.ora || '')));
+
+  const tbody = document.getElementById('history-tbody');
+  const emptyEl = document.getElementById('history-empty');
+  const tableWrap = document.getElementById('history-table-wrap');
+
+  tbody.innerHTML = '';
+
+  if (!records.length) {
+    emptyEl.style.display = 'flex';
+    tableWrap.style.display = 'none';
+    return;
+  }
+
+  emptyEl.style.display = 'none';
+  tableWrap.style.display = 'block';
+
+records.forEach(r => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>${formatDate(r.data)}${r.ora ? '<br><span style="color:var(--color-text-faint);font-size:0.7rem;">'+r.ora+'</span>' : ''}</td>
+    <td><span class="badge badge-targa">${r.targa}</span></td>
+    <td><span class="badge badge-type">${r.tipo || '—'}</span></td>
+    <td>${r.litri != null ? formatDecimalIT(r.litri, 2) : '—'}</td>
+    <td>${r.prezzoUnitario != null ? '€ ' + formatDecimalIT(r.prezzoUnitario, 3) : '—'}</td>
+    <td style="font-weight:600;">${r.totale != null ? '€ ' + formatDecimalIT(r.totale, 2) : '—'}</td>
+    <td>${r.km ? r.km.toLocaleString('it-IT') + ' km' : '—'}</td>
+    <td>${r.idAutista || '—'}</td>
+    <td>${r.note || '—'}</td>
+    <td>
+      <button class="btn btn-ghost btn-sm btn-delete-record" data-id="${r.id}" aria-label="Elimina rifornimento" title="Elimina">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>
+      </button>
+    </td>
+  `;
+  tbody.appendChild(tr);
+});
+
+  tbody.addEventListener('click', e => {
+    const btn = e.target.closest('.btn-delete-record');
+    if (btn && confirm('Eliminare questo rifornimento?')) {
+      rifornimenti = rifornimenti.filter(r => r.id != btn.dataset.id);
+      saveData();
+      renderHistory();
+      updateKPIs();
+      showToast('Rifornimento eliminato', 'success');
+    }
+  }, { once: true });
+}
+
+function getActiveTabName() {
+  const activeBtn = document.querySelector('.tab-btn.active');
+  return activeBtn ? activeBtn.dataset.tab : 'scan';
+}
+
+function getCurrentMonthRange() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+function getRecordsForKPI(scope = 'month') {
+  let records = rifornimenti.filter(r => r.targa === activeTarga);
+
+  if (scope === 'month') {
+    const ym = getCurrentMonthRange();
+    records = records.filter(r => String(r.data || '').startsWith(ym));
+  }
+
+  return records.slice().sort((a, b) => {
+    return (a.data + (a.ora || '')).localeCompare(b.data + (b.ora || ''));
+  });
+}
+
+function calcolaMediaKmLitro(records) {
+  const validi = records
+    .filter(r => r && r.data && r.km != null && r.litri != null && r.litri > 0)
+    .slice()
+    .sort((a, b) => {
+      return (a.data + (a.ora || '')).localeCompare(b.data + (b.ora || ''));
+    });
+
+  if (validi.length < 2) {
+    return null;
+  }
+
+  let kmTotali = 0;
+  let litriTotali = 0;
+
+  for (let i = 1; i < validi.length; i++) {
+    const prev = validi[i - 1];
+    const curr = validi[i];
+
+    const kmPercorsi = (curr.km || 0) - (prev.km || 0);
+    if (kmPercorsi <= 0) continue;
+
+    kmTotali += kmPercorsi;
+    litriTotali += curr.litri || 0;
+  }
+
+  if (kmTotali <= 0 || litriTotali <= 0) {
+    return null;
+  }
+
+  return kmTotali / litriTotali;
+}
+
+function updateKPIs(scope) {
+  const tab = getActiveTabName();
+  const resolvedScope = scope || (tab === 'history' ? 'all' : 'month');
+  const records = getRecordsForKPI(resolvedScope);
+
+  const totSpeso = records.reduce((s, r) => s + (r.totale || 0), 0);
+  const totLitri = records.reduce((s, r) => s + (r.litri || 0), 0);
+  const prezzoMedio = totLitri > 0 ? totSpeso / totLitri : 0;
+  const mediaKmLitro = calcolaMediaKmLitro(records);
+  const last = records.length ? records[records.length - 1] : null;
+
+  document.getElementById('kpi-totale').textContent =
+    '€ ' + totSpeso.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  document.getElementById('kpi-rifornimenti').textContent =
+    records.length + ' rifornimento' + (records.length !== 1 ? 'i' : '');
+
+  document.getElementById('kpi-litri').textContent =
+    totLitri.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' L';
+
+  document.getElementById('kpi-prezzo-medio').textContent =
+    prezzoMedio > 0 ? '€ ' + prezzoMedio.toLocaleString('it-IT', { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '—';
+
+  if (mediaKmLitro != null) {
+    document.getElementById('kpi-km-litro').textContent =
+      mediaKmLitro.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' km/L';
+    document.getElementById('kpi-km-litro-sub').textContent = 'media progressiva sui rifornimenti validi';
+  } else {
+    document.getElementById('kpi-km-litro').textContent = '—';
+    document.getElementById('kpi-km-litro-sub').textContent = 'servono almeno 2 rifornimenti con km';
+  }
+
+  if (last) {
+    document.getElementById('kpi-ultimo').textContent =
+      last.totale != null
+        ? '€ ' + Number(last.totale).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+        : '—';
+
+    document.getElementById('kpi-ultimo-data').textContent = formatDate(last.data);
+  } else {
+    document.getElementById('kpi-ultimo').textContent = '—';
+    document.getElementById('kpi-ultimo-data').textContent = 'nessun dato';
+  }
+}
+
+// ── Excel Export ───────────────────────────────
+function exportExcel() {
+  const records = rifornimenti.filter(r => r.targa === activeTarga);
+  if (!records.length) {
+    showToast('Nessun dato da esportare', 'error');
+    return;
+  }
+
+  const headers = [
+    EXCEL_COLUMNS.orario,
+    EXCEL_COLUMNS.idAutista,
+    EXCEL_COLUMNS.targa,
+    EXCEL_COLUMNS.data,
+    EXCEL_COLUMNS.ora,
+    EXCEL_COLUMNS.litri,
+    EXCEL_COLUMNS.prezzoUnitario,
+    EXCEL_COLUMNS.totale,
+    EXCEL_COLUMNS.km,
+    EXCEL_COLUMNS.note
+  ];
+
+const rows = records
+  .sort((a, b) => a.data.localeCompare(b.data))
+  .map(r => [
+    r.orario || '',
+    r.idAutista || '',
+    r.targa || '',
+    r.data ? formatDate(r.data) : '',
+    r.ora || '',
+    r.litri != null ? formatDecimalIT(r.litri, 2) : '',
+    r.prezzoUnitario != null ? formatDecimalIT(r.prezzoUnitario, 3) : '',
+    r.totale != null ? formatDecimalIT(r.totale, 2) : '',
+    r.km || '',
+    r.note || ''
+  ]);
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  ws['!cols'] = [14, 18, 12, 18, 16, 18, 14, 14, 18, 30].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, activeTarga);
+
+  const fname = `rifornimenti_${activeTarga}_${new Date().toISOString().split('T')[0]}.xlsx`;
+  XLSX.writeFile(wb, fname);
+  showToast(`Excel esportato: ${fname}`, 'success');
+}
+
+// ── Helpers ────────────────────────────────────
+function formatDate(d) {
+  if (!d) return '—';
+  const parts = d.split('-');
+  if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  return d;
+}
+
+function saveVehicles() { localStorage.setItem('fs_vehicles', JSON.stringify(vehicles)); }
+function saveData() { localStorage.setItem('fs_data', JSON.stringify(rifornimenti)); }
+
+function showToast(msg, type='success') {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  const icon = type === 'success'
+    ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#437a22" stroke-width="2.5" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>'
+    : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="#a12c7b" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+  t.innerHTML = icon + `<span>${msg}</span>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+</script>
+
+<div id="camera-guide-modal" class="camera-guide-modal" hidden>
+  <div class="camera-guide-backdrop"></div>
+
+  <div class="camera-guide-sheet" role="dialog" aria-modal="true" aria-labelledby="camera-guide-title">
+    <div class="camera-guide-topbar">
+      <button type="button" class="btn btn-ghost btn-icon" id="camera-guide-close" aria-label="Chiudi guida">
+        <i data-lucide="x" style="width:18px;height:18px;"></i>
+      </button>
+    </div>
+
+    <div class="camera-guide-viewfinder">
+      <div class="camera-guide-frame">
+        <div class="frame-corner tl"></div>
+        <div class="frame-corner tr"></div>
+        <div class="frame-corner bl"></div>
+        <div class="frame-corner br"></div>
+      </div>
+
+      <div class="camera-guide-card">
+        <h3 id="camera-guide-title">Inquadra il biglietto nel riquadro</h3>
+        <p>
+          Posiziona lo scontrino in verticale, tutto dentro il riquadro,
+          con buona luce e senza ombre.
+        </p>
+      </div>
+    </div>
+
+    <div class="camera-guide-actions">
+      <button type="button" class="btn btn-secondary" id="camera-guide-cancel">Annulla</button>
+      <button type="button" class="btn btn-primary" id="camera-guide-open-camera">
+        <i data-lucide="camera" style="width:16px;height:16px;"></i>
+        Apri fotocamera
+      </button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
